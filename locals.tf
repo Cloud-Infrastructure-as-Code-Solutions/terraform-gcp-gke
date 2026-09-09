@@ -11,6 +11,16 @@
 ###############################################################################
 
 locals {
+  # APIs this module's own resources need. Not exposed as a variable --
+  # var.enable_project_services only toggles whether this module enables
+  # them itself; it does not change which ones.
+  required_apis = [
+    "container.googleapis.com",
+    "iam.googleapis.com",
+    "logging.googleapis.com",
+    "monitoring.googleapis.com",
+  ]
+
   cluster_name = "${var.resource_names["gke_cluster"]}-${var.description}-01"
 
   node_pool_keys  = sort(keys(var.node_pools))

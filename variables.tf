@@ -3,6 +3,20 @@ variable "project_id" {
   type        = string
 }
 
+variable "enable_project_services" {
+  description = <<-EOT
+    Enable this module's required GCP APIs (container, iam, logging,
+    monitoring -- see locals.tf) before creating anything. Defaults to true
+    so the module is self-sufficient on its own.
+
+    Set to false only if something else in the same apply already enables
+    all four -- unlikely for most stacks, since none of them are typically
+    owned by whatever creates the VPC/subnet this cluster runs in.
+  EOT
+  type        = bool
+  default     = true
+}
+
 variable "resource_names" {
   description = <<-EOT
     Naming-prefix codes keyed by resource type, used to derive every resource

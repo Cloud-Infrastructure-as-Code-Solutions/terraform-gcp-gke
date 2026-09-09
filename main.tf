@@ -7,6 +7,14 @@
 # rather than passed in directly; see locals.tf.
 ###############################################################################
 
+resource "google_project_service" "required" {
+  for_each = var.enable_project_services ? toset(local.required_apis) : toset([])
+
+  project            = var.project_id
+  service            = each.value
+  disable_on_destroy = false
+}
+
 ###############################################################################
 # Node identity
 #
@@ -22,6 +30,8 @@ resource "google_service_account" "node" {
   account_id   = local.node_sa_id
   display_name = "GKE node service account (${var.description})"
   description  = "Minimal-privilege identity for GKE nodes. Not for workloads."
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_project_iam_member" "node" {
@@ -144,6 +154,8 @@ resource "google_container_cluster" "this" {
   lifecycle {
     ignore_changes = [initial_node_count]
   }
+
+  depends_on = [google_project_service.required]
 }
 
 resource "google_container_node_pool" "this" {
