@@ -7,6 +7,31 @@
 # rather than passed in directly; see locals.tf.
 ###############################################################################
 
+###############################################################################
+# Node identity
+#
+# Created only when var.node_service_account is null. GKE otherwise defaults
+# nodes to the Compute Engine default SA, which holds project-wide Editor --
+# this is the module's own guard against that, not something every caller
+# should have to remember to wire up separately.
+###############################################################################
+
+resource "google_service_account" "node" {
+  count = var.node_service_account == null ? 1 : 0
+
+  account_id   = local.node_sa_id
+  display_name = "GKE node service account (${var.description})"
+  description  = "Minimal-privilege identity for GKE nodes. Not for workloads."
+}
+
+resource "google_project_iam_member" "node" {
+  for_each = var.node_service_account == null ? toset(var.node_service_account_roles) : toset([])
+
+  project = var.project_id
+  role    = each.value
+  member  = "serviceAccount:${google_service_account.node[0].email}"
+}
+
 resource "google_container_cluster" "this" {
   name     = local.cluster_name
   location = var.location
@@ -165,7 +190,7 @@ resource "google_container_node_pool" "this" {
     disk_type    = each.value.disk_type
     image_type   = each.value.image_type
 
-    service_account = var.node_service_account
+    service_account = local.node_service_account
     oauth_scopes    = ["https://www.googleapis.com/auth/cloud-platform"]
 
     tags   = each.value.tags
@@ -203,4 +228,10 @@ resource "google_container_node_pool" "this" {
     # Taints and labels are read back in a different order than written.
     ignore_changes = [node_config[0].labels]
   }
+
+  # Nodes booting on a freshly-created SA before its IAM grants land fail
+  # closed on their first logging/monitoring write. Only real when this
+  # module created the SA itself -- an empty for_each on
+  # google_project_iam_member.node makes this a no-op dependency otherwise.
+  depends_on = [google_project_iam_member.node]
 }

@@ -7,16 +7,22 @@ variable "resource_names" {
   description = <<-EOT
     Naming-prefix codes keyed by resource type, used to derive every resource
     name this module creates. Required keys: "gke_cluster", "gke_nodepool".
+    Optional key: "gke_node_sa" (defaults to "sa" if omitted), used only when
+    var.node_service_account is null and this module creates its own node
+    service account.
 
     A derived name has the shape "<resource_names[key]>-<description>-<NN>",
     where NN is a zero-padded sequence number (01, 02, ...). The cluster is a
     singleton and is always "-01"; node pools are numbered in the sorted order
-    of their var.node_pools keys.
+    of their var.node_pools keys. The node service account is also a
+    singleton, but its account_id drops the "-<NN>" suffix and truncates to
+    30 characters -- see locals.tf.
 
     Example:
       resource_names = {
         gke_cluster  = "gke"
         gke_nodepool = "gkenp"
+        gke_node_sa  = "sa"
       }
   EOT
   type        = map(string)
@@ -121,8 +127,40 @@ variable "monitoring_components" {
 }
 
 variable "node_service_account" {
-  description = "Email of the minimal-privilege service account attached to nodes."
+  description = <<-EOT
+    Email of an EXISTING service account to attach to nodes.
+
+    Leave null (the default) to have this module create its own
+    minimal-privilege node service account and grant it
+    var.node_service_account_roles. Set this only to share one service
+    account across multiple clusters, or to reuse an org-managed identity --
+    in either case this module grants no IAM roles, since it isn't the
+    account's owner.
+  EOT
   type        = string
+  default     = null
+}
+
+variable "node_service_account_roles" {
+  description = <<-EOT
+    IAM roles granted to the node service account this module creates.
+    Ignored when var.node_service_account is set (this module never manages
+    IAM on an account it did not create).
+
+    Defaults to what kubelet actually needs -- GKE otherwise falls back to
+    the Compute Engine default SA, which holds project-wide Editor. No
+    artifactregistry.reader by default: if your images come from a registry
+    that isn't Artifact Registry (e.g. GHCR via an imagePullSecret), the node
+    identity has no business being in the image-pull path at all. Add it
+    here if you do use Artifact Registry.
+  EOT
+  type        = list(string)
+  default = [
+    "roles/logging.logWriter",
+    "roles/monitoring.metricWriter",
+    "roles/monitoring.viewer",
+    "roles/stackdriver.resourceMetadata.writer",
+  ]
 }
 
 variable "deletion_protection" {

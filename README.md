@@ -17,7 +17,19 @@ taking a name directly:
 `NN` is a zero-padded sequence number. The cluster is a singleton and is
 always `-01`. Node pools are numbered in the sorted order of their
 `var.node_pools` keys — see the caveat in `locals.tf` about what that means
-for `terraform apply` when the set of pool keys changes shape.
+for `terraform apply` when the set of pool keys changes shape. The node
+service account (below) is also a singleton but drops the `-NN` suffix and
+truncates to 30 characters, since `google_service_account.account_id` has a
+tighter cap than every other name this module derives.
+
+## Node identity
+
+By default this module creates its own minimal-privilege node service
+account and grants it `var.node_service_account_roles` — GKE otherwise falls
+back to the Compute Engine default SA, which holds project-wide `Editor`.
+Pass `node_service_account` (an existing account's email) to use your own
+identity instead; this module then grants no IAM roles, since it isn't that
+account's owner.
 
 ```hcl
 module "gke" {
@@ -29,14 +41,16 @@ module "gke" {
   resource_names = {
     gke_cluster  = "gke"
     gke_nodepool = "gkenp"
+    gke_node_sa  = "sa"
   }
   description = "sandbox"
 
-  network               = google_compute_network.vpc.id
-  subnetwork            = google_compute_subnetwork.private.id
-  master_cidr           = var.master_cidr
-  authorized_networks   = var.authorized_networks
-  node_service_account  = google_service_account.node.email
+  network             = google_compute_network.vpc.id
+  subnetwork          = google_compute_subnetwork.private.id
+  master_cidr         = var.master_cidr
+  authorized_networks = var.authorized_networks
+
+  # node_service_account left unset: the module creates its own.
 
   node_pools = {
     system = {

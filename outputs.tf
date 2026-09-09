@@ -34,3 +34,8 @@ output "node_pool_labels" {
   description = "Node labels per pool, for building nodeSelector values."
   value       = { for k, v in var.node_pools : k => v.labels }
 }
+
+output "node_service_account" {
+  description = "Email of the node service account in use -- the one this module created, or var.node_service_account when set."
+  value       = local.node_service_account
+}

@@ -20,4 +20,18 @@ locals {
     for key in local.node_pool_keys :
     key => "${var.resource_names["gke_nodepool"]}-${var.description}-${local.node_pool_index[key]}"
   }
+
+  # google_service_account.account_id is capped at 30 characters by the GCP
+  # API -- tighter than every other name this module derives, and the only
+  # one where "<code>-<description>-<NN>" reliably overflows once
+  # var.description carries a real naming convention's full token chain.
+  # Dropping the "-NN" suffix (the SA is always a singleton, so it adds
+  # nothing) and truncating is the least-surprising way to stay under that
+  # cap; collision isn't a concern since this module creates at most one.
+  node_sa_id = substr(
+    "${try(var.resource_names["gke_node_sa"], "sa")}-${var.description}",
+    0, 30,
+  )
+
+  node_service_account = coalesce(var.node_service_account, try(google_service_account.node[0].email, null))
 }
